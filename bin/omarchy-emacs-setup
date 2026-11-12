@@ -77,8 +77,24 @@ omarchy-emacs-sync-hooks
 # blended shades forever.
 cp "$SHARE_DIR/omarchy-colors.el.tpl" "$THEMED_DIR/"
 
-# Generate colors for the current theme
-if command -v omarchy-theme-set &>/dev/null; then
+# Generate colors for the current theme. Render only the Emacs colors, the same
+# way omarchy--render-colors does in config/omarchy.el. A full omarchy-theme-set
+# would reapply the theme to every app and change the wallpaper.
+theme_dir="$HOME/.local/state/omarchy/current/theme"
+[[ -d $theme_dir ]] || theme_dir="$HOME/.config/omarchy/current/theme"
+
+if [[ -r $theme_dir/colors.toml && -w $theme_dir ]] && command -v omarchy-theme-color &>/dev/null &&
+  colors=$(omarchy-theme-color --file "$theme_dir/colors.toml" --all) && [[ -n $colors ]]; then
+  content=$(<"$THEMED_DIR/omarchy-colors.el.tpl")
+  while IFS=$'\t' read -r key value; do
+    [[ -n $key && -n $value ]] && content=${content//"{{ $key }}"/"$value"}
+  done <<<"$colors"
+  printf '%s\n' "$content" >"$theme_dir/omarchy-colors.el.tmp"
+  mv "$theme_dir/omarchy-colors.el.tmp" "$theme_dir/omarchy-colors.el"
+
+  # The theme name did not change, so a running Emacs will not reload by itself.
+  omarchy-restart-emacs
+elif command -v omarchy-theme-set &>/dev/null; then
   theme=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
   if [[ -n $theme ]]; then
     omarchy-theme-set "$theme"
